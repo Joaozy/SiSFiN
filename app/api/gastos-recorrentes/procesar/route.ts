@@ -1,94 +1,66 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 
-/**
- * Processa gastos recorrentes automaticamente
- * Verifica se há gastos agendados para HOJE que ainda não foram lançados
- */
-export async function POST() {
-  const supabase = await createClient();
-  
-  const hoje = new Date();
-  const diaAtual = hoje.getDate();
-  const dataHojeISO = hoje.toISOString().split('T')[0]; // YYYY-MM-DD
+// Usamos admin para rodar em background sem sessão do usuário
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
+export async function GET() {
   try {
-    // 1. Obter todos os gastos ativos para o dia de hoje
-    const { data: gastosRecorrentes, error: errorGastos } = await supabase
-      .from('gastos_mensais')
+    const hoje = new Date();
+    const diaHoje = hoje.getDate();
+    const mesAtual = hoje.getMonth(); // 0 = Janeiro
+    const anoAtual = hoje.getFullYear();
+
+    // 1. Buscar contas ativas que vencem hoje ou antes e ainda não foram geradas este mês
+    const { data: recorrentes, error } = await supabaseAdmin
+      .from('gastos_recorrentes')
       .select('*')
-      .eq('activo', true)
-      .eq('dia_cobranca', diaAtual);
+      .eq('ativo', true)
+      .lte('dia_vencimento', diaHoje); // Vence hoje ou já passou
 
-    if (errorGastos) {
-      return NextResponse.json({ error: errorGastos.message }, { status: 500 });
-    }
+    if (error) throw error;
 
-    if (!gastosRecorrentes || gastosRecorrentes.length === 0) {
-      return NextResponse.json({
-        message: 'Nenhum gasto recorrente para processar hoje',
-        procesados: 0
-      });
-    }
+    let gerados = 0;
 
-    const transacoesCriadas = [];
-    const gastosAtualizados = [];
+    for (const item of recorrentes) {
+      const dataUltima = item.ultima_geracao ? new Date(item.ultima_geracao) : null;
+      
+      // Verifica se já foi gerado neste mês/ano
+      const jaGerouEsteMes = dataUltima && 
+                             dataUltima.getMonth() === mesAtual && 
+                             dataUltima.getFullYear() === anoAtual;
 
-    // 2. Verificar quais já foram processados hoje
-    for (const gasto of gastosRecorrentes) {
-      const descricaoPadrao = `${gasto.nome} (Recorrente)`;
+      if (!jaGerouEsteMes) {
+        // CRIAR A TRANSAÇÃO
+        await supabaseAdmin.from('transacoes').insert({
+            usuario_id: item.usuario_id,
+            descricao: `${item.descricao} (Recorrente)`,
+            valor: item.valor,
+            tipo: 'despesa',
+            categoria: item.categoria,
+            metodo_pagamento: 'Recorrente',
+            data: new Date().toISOString()
+        });
 
-      // Verifica na tabela 'transacoes' se já existe um lançamento hoje com esse nome
-      const { data: transacaoExistente } = await supabase
-        .from('transacoes')
-        .select('id')
-        .eq('descricao', descricaoPadrao) // Usando 'descricao' como chave de verificação
-        .gte('data', `${dataHojeISO}T00:00:00`)
-        .lte('data', `${dataHojeISO}T23:59:59`)
-        .limit(1);
+        // ATUALIZAR A DATA DA ÚLTIMA GERAÇÃO
+        await supabaseAdmin
+            .from('gastos_recorrentes')
+            .update({ ultima_geracao: new Date().toISOString() })
+            .eq('id', item.id);
 
-      if (transacaoExistente && transacaoExistente.length > 0) {
-        console.log(`⏭️ Gasto "${gasto.nome}" já processado hoje.`);
-        continue; // Pula para o próximo
+        gerados++;
       }
-
-      // 3. Criar Transação na tabela principal
-      const { data: transacao, error: errorTransacao } = await supabase
-        .from('transacoes')
-        .insert({
-          tipo: 'despesa',
-          valor: gasto.valor,
-          categoria: 'Assinaturas', // Categoria padrão
-          descricao: descricaoPadrao,
-          metodo_pagamento: 'Cartão de Crédito', // Padrão assumido para recorrentes
-          data: new Date().toISOString(),
-          // Se tiver usuário vinculado no gasto_mensal, use aqui, senão pode dar erro de RLS se for rodado por cron job anonimo
-          usuario_id: gasto.usuario_id 
-        })
-        .select();
-
-      if (errorTransacao) {
-        console.error(`❌ Erro ao criar transação para ${gasto.nome}:`, errorTransacao);
-        continue;
-      }
-
-      transacoesCriadas.push(transacao?.[0]);
-      gastosAtualizados.push(gasto.nome);
-      console.log(`✅ Gasto "${gasto.nome}" processado: R$ ${gasto.valor}`);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: `Processados ${transacoesCriadas.length} gastos recorrentes`,
-      processados_qtd: transacoesCriadas.length,
-      gastos: gastosAtualizados,
-      transacoes: transacoesCriadas,
+    return NextResponse.json({ 
+        success: true, 
+        mensagem: `${gerados} contas recorrentes processadas.` 
     });
 
   } catch (error: any) {
-    return NextResponse.json({
-      error: 'Erro ao processar gastos recorrentes',
-      details: error.message
-    }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
