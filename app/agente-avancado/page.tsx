@@ -180,7 +180,6 @@ export default function AgenteAvancadoPage() {
 
       if (valorMatch) {
         // Remove vírgulas se for formato 1,000.00 ou trata formato 1.000,00 (Brasil)
-        // Assumindo formato padrão numérico JS para simplificar, ou ajustar conforme necessidade
         let valorDeclarado = parseFloat(valorMatch[1].replace(',', ''));
         
         // Tentativa de suportar formato brasileiro (trocar vírgula decimal por ponto) se necessário
@@ -188,7 +187,7 @@ export default function AgenteAvancadoPage() {
            valorDeclarado = parseFloat(valorMatch[1].replace('.', '').replace(',', '.'));
         }
 
-        const valorOCR = ocrDataList[0].valor || ocrDataList[0].monto; // Suporte a ambos os nomes por segurança
+        const valorOCR = ocrDataList[0].valor || ocrDataList[0].monto;
 
         // Se houver diferença maior que R$ 50, perguntar
         if (valorOCR && Math.abs(valorDeclarado - valorOCR) > 50) {
@@ -269,13 +268,12 @@ Qual valor está correto?
         <div className="absolute -right-20 -top-20 w-96 h-96 rounded-full bg-gradient-to-br from-emerald-400/40 to-cyan-400/40 dark:from-emerald-400/20 dark:to-cyan-400/20 blur-3xl pointer-events-none animate-pulse" />
         <div className="absolute -left-20 -bottom-20 w-80 h-80 rounded-full bg-gradient-to-tr from-purple-400/30 to-pink-400/30 dark:from-purple-400/15 dark:to-pink-400/15 blur-3xl pointer-events-none animate-pulse" style={{ animationDelay: '1.5s' }} />
 
+        {/* Estado Vazio (Agora raramente aparecerá pois o hook inicia com mensagem) */}
         {messages.length === 0 && (
           <div className="relative text-center text-gray-500 dark:text-gray-400 mt-8 z-10">
             <div className="inline-block p-8 rounded-3xl bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 dark:from-emerald-500/20 dark:to-cyan-500/20 backdrop-blur-2xl border-2 border-emerald-500/50 dark:border-emerald-500/30 mb-4 shadow-2xl relative overflow-hidden">
-              {/* Glass effect interno */}
               <div className="absolute inset-0 bg-white/10 dark:bg-white/5 rounded-3xl" />
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/10 dark:to-transparent" />
-
               <Bot className="relative w-20 h-20 text-emerald-600 dark:text-emerald-400 animate-pulse mx-auto" />
             </div>
             <p className="text-2xl font-bold mb-3 text-gray-900 dark:text-white drop-shadow-lg">
@@ -330,16 +328,16 @@ Qual valor está correto?
                 <p className="whitespace-pre-wrap relative z-10">{msg.content}</p>
               )}
 
-              {/* ✨ Indicador de PENSANDO vs ESCREVENDO */}
+              {/* ✨ Indicador de PENSANDO vs ESCREVENDO (Dentro do balão) */}
               {msg.isThinking && (
-                <div className="mt-3 flex items-center gap-2 text-sm opacity-90 bg-gradient-to-r from-purple-500/20 to-pink-500/20 dark:from-purple-500/10 dark:to-pink-500/10 backdrop-blur-xl rounded-lg p-2 border border-purple-400/30 dark:border-purple-400/20">
-                  <Brain className="w-4 h-4 animate-pulse text-purple-600 dark:text-purple-400" />
+                <div className="mt-3 flex items-center gap-2 text-sm opacity-90 bg-gradient-to-r from-purple-500/20 to-pink-500/20 dark:from-purple-500/10 dark:to-pink-500/10 backdrop-blur-xl rounded-lg p-2 border border-purple-400/30 dark:border-purple-400/20 animate-pulse">
+                  <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                   <span className="font-medium text-purple-700 dark:text-purple-300">Pensando...</span>
                 </div>
               )}
 
               {msg.isStreaming && !msg.isThinking && (
-                <div className="mt-2 flex items-center gap-2 text-sm opacity-70">
+                <div className="mt-2 flex items-center gap-2 text-sm opacity-70 animate-pulse">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Escrevendo...
                 </div>
@@ -355,11 +353,11 @@ Qual valor está correto?
           </div>
         ))}
 
-        {/* ✨ Scroll anchor: referência para auto-scroll */}
+        {/* ✨ Scroll anchor */}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Image Previews com GLASSMORPHISM */}
+      {/* Image Previews */}
       {selectedImages.length > 0 && (
         <div className="relative flex gap-3 mb-4 overflow-x-auto p-4 bg-white/10 dark:bg-white/5 backdrop-blur-2xl rounded-2xl border-2 border-white/20 dark:border-white/10 shadow-xl">
           {selectedImages.map((img) => (
@@ -383,7 +381,7 @@ Qual valor está correto?
         </div>
       )}
 
-      {/* Input Form com GLASSMORPHISM */}
+      {/* Input Form */}
       <form
         onSubmit={(e) => {
           e.preventDefault()

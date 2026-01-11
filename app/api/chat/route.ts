@@ -1,12 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+// Mudamos para nodejs para garantir compatibilidade total com o Supabase Auth
+export const runtime = 'nodejs';
 
 const SYSTEM_PROMPT = `
-Você é um assistente financeiro pessoal. 
+Você é um assistente financeiro pessoal consultivo (FinChat Simples). 
 Responda sempre em Português do Brasil de forma curta, amigável e direta.
-Se o usuário tentar registrar uma transação aqui, avise gentilmente que ele deve usar o "Agente Avançado" ou a aba de "Novo Registro", pois este é apenas um chat de consulta rápida.
+
+IMPORTANTE: Você NÃO tem permissão para registrar transações neste chat.
+Se o usuário tentar registrar um gasto ou ganho, avise gentilmente:
+"Para registrar transações, por favor utilize a aba 'Agente Avançado' ou 'Novo Registro', pois por aqui sou apenas um chat de consulta rápida."
 `;
 
 export async function POST(req: Request) {
@@ -34,10 +38,11 @@ export async function POST(req: Request) {
 
     // 4. Verificar Chave de API
     if (!process.env.OPENROUTER_API_KEY) {
-      return NextResponse.json({ error: 'Chave de API (OpenRouter) não configurada' }, { status: 500 });
+      return NextResponse.json({ error: 'Chave de API não configurada' }, { status: 500 });
     }
 
-    // 5. Chamar OpenRouter (Gemini)
+    // 5. Chamar OpenRouter (Gemini Profissional)
+    // Atualizado para o mesmo modelo potente do agente avançado para manter a qualidade
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -47,7 +52,7 @@ export async function POST(req: Request) {
         'X-Title': 'FinChat Simples',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-lite-preview-02-05:free', // Modelo rápido e gratuito
+        model: 'google/gemini-2.5-pro', // Modelo Atualizado e Profissional
         messages: conversation,
         temperature: 0.7,
       })
