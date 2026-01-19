@@ -60,7 +60,13 @@ export async function POST(req: NextRequest) {
   try {
     const body: any = await req.json();
 
+    // --- ADICIONE ESTE LOG DEPURADOR AQUI ---
+    console.log("🔥 WEBHOOK ACIONADO!");
+    console.log("📦 Payload Bruto:", JSON.stringify(body, null, 2));
+    // ----------------------------------------
+
     if (!body || body.object !== 'whatsapp_business_account') {
+      console.log("❌ Ignorado: Não é conta business");
       return NextResponse.json({ status: 'ignored' }, { status: 404 });
     }
 
