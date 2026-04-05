@@ -36,11 +36,9 @@ export default function CadastroPage() {
       return
     }
 
-    // 2. Se a conta foi criada, salva os dados pessoais para o Bot do WhatsApp
+    // 2. Tenta salvar os dados pessoais
     if (authData.user) {
-      // Limpa tudo o que não for número (tira parênteses, traços, etc)
       let numeroLimpo = telefone.replace(/\D/g, '');
-      // Se a pessoa não digitou o 55 (Brasil), nós adicionamos automaticamente
       if (!numeroLimpo.startsWith('55')) {
         numeroLimpo = `55${numeroLimpo}`;
       }
@@ -50,19 +48,20 @@ export default function CadastroPage() {
         .insert({
           usuario_id: authData.user.id,
           nome: nome,
-          cpf: cpf.replace(/\D/g, ''), // Salva só os números do CPF
+          cpf: cpf.replace(/\D/g, ''),
           telefone: numeroLimpo
         })
 
+      // 🚨 AQUI ESTÁ A CORREÇÃO: Se der erro, para tudo e mostra na tela!
       if (dbError) {
-        console.error("Erro ao salvar perfil:", dbError)
-        // Não bloqueamos o usuário, mas registramos o erro no console
+        setError('Erro ao ligar número ao banco: ' + dbError.message)
+        setLoading(false)
+        return // Impede de mostrar o "Sucesso"
       }
 
       setSucesso(true)
       setLoading(false)
       
-      // Redireciona para o login após 3 segundos
       setTimeout(() => {
         router.push('/login')
       }, 3000)
