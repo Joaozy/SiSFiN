@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, PlusCircle, Bot, Settings, LogOut, FileText, Calculator, RefreshCw } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, LogOut, RefreshCw } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -31,7 +31,7 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-4 lg:gap-8">
-            <Link href="/" className="flex items-center gap-2 group">
+            <Link href="/dashboard" className="flex items-center gap-2 group">
               <div className="bg-gradient-to-tr from-emerald-500 to-cyan-500 p-2 rounded-lg group-hover:scale-110 transition-transform">
                 <LayoutDashboard className="w-5 h-5 text-white" />
               </div>
@@ -41,20 +41,12 @@ export function Header() {
             </Link>
 
             <nav className="hidden md:flex items-center gap-1">
-              <Link href="/" className={navClass('/')}>
+              <Link href="/dashboard" className={navClass('/dashboard')}>
                 Dashboard
               </Link>
               <Link href="/registro" className={navClass('/registro')}>
                 <PlusCircle className="w-4 h-4" />
                 Novo
-              </Link>
-              <Link href="/agente-avancado" className={navClass('/agente-avancado')}>
-                <Bot className="w-4 h-4" />
-                IA
-              </Link>
-              <Link href="/corte-diario" className={navClass('/corte-diario')}>
-                <Calculator className="w-4 h-4" />
-                Caixa
               </Link>
               <Link href="/gastos-recorrentes" className={navClass('/gastos-recorrentes')}>
                 <RefreshCw className="w-4 h-4" />
@@ -77,12 +69,10 @@ export function Header() {
           </div>
         </div>
         
-        {/* Menu Mobile Simplificado (Opcional - só ícones) */}
+        {/* Menu Mobile Simplificado (só ícones das páginas ativas) */}
         <div className="md:hidden border-t border-gray-100 dark:border-gray-800 flex justify-around py-2">
-            <Link href="/" className="p-2 text-gray-600"><LayoutDashboard size={20}/></Link>
+            <Link href="/dashboard" className="p-2 text-emerald-600"><LayoutDashboard size={20}/></Link>
             <Link href="/registro" className="p-2 text-gray-600"><PlusCircle size={20}/></Link>
-            <Link href="/agente-avancado" className="p-2 text-emerald-600"><Bot size={24}/></Link>
-            <Link href="/corte-diario" className="p-2 text-gray-600"><Calculator size={20}/></Link>
             <Link href="/gastos-recorrentes" className="p-2 text-gray-600"><RefreshCw size={20}/></Link>
         </div>
       </div>
