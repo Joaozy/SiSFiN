@@ -255,6 +255,11 @@ export async function processarMensagemWhatsApp(
                  }
             }
 
+            // 🚀 AQUI ENTRA O LINK MÁGICO PARA O APP
+            // Substitua pelo seu link real da Vercel
+            const linkApp = `https://sisfin.vercel.app/dashboard?periodo=${periodo}`;
+            resposta += `\n\n🔗 *Veja os detalhes e baixe o PDF aqui:*\n${linkApp}`;
+
             return resposta;
         }
     }
