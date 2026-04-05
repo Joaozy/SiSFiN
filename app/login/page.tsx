@@ -1,129 +1,86 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import { Loader2, Lock, Mail, LogIn } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { LayoutDashboard, Lock, Mail, ArrowRight } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError('')
+    setError(null)
 
-    console.log("🚀 [Login] 1. Iniciando tentativa de login...")
-    console.log("📧 [Login] Email:", email)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      console.log("📡 [Login] 2. Resposta do Supabase:", { data, error })
-
-      if (error) {
-        throw error
-      }
-
-      if (!data.user) {
-        throw new Error("Erro desconhecido: Usuário veio vazio.")
-      }
-
-      console.log("✅ [Login] 3. Sucesso! ID:", data.user.id)
-      console.log("🔄 [Login] 4. Forçando redirecionamento...")
-
-      // TRUQUE: Usamos window.location em vez de router.push
-      // Isso força o navegador a recarregar a página e ler os cookies novos
-      window.location.href = '/' 
-
-    } catch (err: any) {
-      console.error("❌ [Login] Erro:", err)
-      
-      // Tratamento de mensagens amigáveis
-      let msg = err.message
-      if (msg.includes('Invalid login')) msg = 'Email ou senha incorretos.'
-      if (msg.includes('not confirmed')) msg = 'Você precisa confirmar seu email antes de entrar.'
-      
-      setError(msg)
-      setLoading(false) // Só destrava o botão se der erro
+    if (error) {
+      setError('Email ou senha incorretos.')
+      setLoading(false)
+    } else {
+      router.push('/dashboard')
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-      <div className="bg-gray-800 border border-gray-700 p-8 rounded-2xl shadow-xl w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-8 h-8 text-emerald-500" />
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Login</h1>
-          <p className="text-gray-400">Acesse suas finanças</p>
-        </div>
+    <div className="flex items-center justify-center p-4 min-h-[85vh]">
+      {/* Efeitos de Fundo da Página Inteira */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-[0%] -right-[5%] w-[40%] h-[40%] bg-cyan-500/10 rounded-full blur-3xl"></div>
+      </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 p-3 bg-gray-900 border border-gray-600 rounded text-white focus:border-emerald-500"
-                placeholder="seu@email.com"
-                required
-              />
+      <div className="w-full max-w-[420px] relative z-10 animate-in fade-in zoom-in-95 duration-700">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-gray-700 p-8 md:p-10">
+          
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg rotate-3">
+              <LayoutDashboard className="w-8 h-8 text-white -rotate-3" />
             </div>
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Bem-vindo</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Aceda à sua inteligência financeira</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Senha</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 p-3 bg-gray-900 border border-gray-600 rounded text-white focus:border-emerald-500"
-                placeholder="••••••••"
-                required
-              />
+          <form onSubmit={handleLogin} className="space-y-5">
+            {error && (
+              <div className="p-4 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl text-sm font-medium border border-rose-100 dark:border-rose-800 text-center animate-in shake">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">E-mail</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><Mail size={20} /></div>
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all dark:text-white outline-none"
+                  placeholder="seu@email.com"
+                />
+              </div>
             </div>
-          </div>
 
-          {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/50 rounded text-red-400 text-sm text-center font-bold animate-pulse">
-              {error}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Senha</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><Lock size={20} /></div>
+                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all dark:text-white outline-none"
+                  placeholder="••••••••"
+                />
+              </div>
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white p-3 rounded font-bold flex items-center justify-center gap-2 transition-all"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" />
-                Entrando...
-              </>
-            ) : 'Entrar'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-gray-400 text-sm">
-            Não tem uma conta?{' '}
-            <Link href="/cadastro" className="text-emerald-400 hover:underline">
-              Criar conta
-            </Link>
-          </p>
+            <button type="submit" disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition-all disabled:opacity-70 mt-4"
+            >
+              {loading ? 'A entrar...' : <><ArrowRight size={20} /> Entrar na conta</>}
+            </button>
+          </form>
         </div>
       </div>
     </div>

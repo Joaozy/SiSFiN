@@ -1,88 +1,88 @@
-import { createClient } from '@supabase/supabase-js';
+'use client'
 
-// Conectando ao banco de dados com a chave de administrador
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { LayoutDashboard, Lock, Mail, ArrowRight } from 'lucide-react'
 
-export default async function DashboardPage(props: { searchParams: Promise<{ periodo?: string }> }) {
-  const searchParams = await props.searchParams;
-  const periodo = searchParams.periodo || 'geral';
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
-  // 1. Busca TODAS as transações no banco de dados
-  const { data: transacoes, error } = await supabase
-    .from('transacoes')
-    .select('*')
-    .order('data', { ascending: false }); // Já traz da mais recente para a mais antiga
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
 
-  // 2. Prepara a matemática
-  let totalReceitas = 0;
-  let totalDespesas = 0;
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-  if (transacoes && !error) {
-    transacoes.forEach((t) => {
-      if (t.tipo === 'receita') totalReceitas += Number(t.valor);
-      if (t.tipo === 'despesa') totalDespesas += Number(t.valor);
-    });
+    if (error) {
+      setError('Email ou senha incorretos.')
+      setLoading(false)
+    } else {
+      router.push('/dashboard')
+    }
   }
 
-  const saldoAtual = totalReceitas - totalDespesas;
-
-  // Função simples para formatar os números para Reais (R$)
-  const formatarMoeda = (valor: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
-  };
-
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-800 mb-2">
-        Meu Painel Financeiro
-      </h1>
-      <p className="text-gray-500 mb-8">
-        Visualizando os dados do período: <span className="font-semibold text-blue-600 capitalize">{periodo}</span>
-      </p>
-
-      {/* Grid de Cards com os dados REAIS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-gray-500 text-sm font-medium">Total Receitas</h3>
-          <p className="text-2xl font-bold text-green-600 mt-2">{formatarMoeda(totalReceitas)}</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-gray-500 text-sm font-medium">Total Despesas</h3>
-          <p className="text-2xl font-bold text-red-600 mt-2">{formatarMoeda(totalDespesas)}</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-gray-500 text-sm font-medium">Saldo Atual</h3>
-          <p className={`text-2xl font-bold mt-2 ${saldoAtual >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-            {formatarMoeda(saldoAtual)}
-          </p>
-        </div>
+    <div className="flex items-center justify-center p-4 min-h-[85vh]">
+      {/* Efeitos de Fundo da Página Inteira */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-[0%] -right-[5%] w-[40%] h-[40%] bg-cyan-500/10 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">Últimas Transações</h3>
-        
-        {/* Mostra uma lista com os últimos gastos/receitas */}
-        {transacoes && transacoes.length > 0 ? (
-          <ul className="divide-y divide-gray-100">
-            {transacoes.map((t) => (
-              <li key={t.id_curto || t.id} className="py-3 flex justify-between items-center">
-                <div>
-                  <p className="font-medium text-gray-800">{t.descricao}</p>
-                  <p className="text-sm text-gray-500">{t.categoria} • <span className="text-xs">ID: {t.id_curto}</span></p>
-                </div>
-                <div className={`font-semibold ${t.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
-                  {t.tipo === 'receita' ? '+' : '-'} {formatarMoeda(t.valor)}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-500">Nenhuma transação encontrada ainda. Mande uma mensagem no WhatsApp!</p>
-        )}
+      <div className="w-full max-w-[420px] relative z-10 animate-in fade-in zoom-in-95 duration-700">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-gray-700 p-8 md:p-10">
+          
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg rotate-3">
+              <LayoutDashboard className="w-8 h-8 text-white -rotate-3" />
+            </div>
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Bem-vindo</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Aceda à sua inteligência financeira</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            {error && (
+              <div className="p-4 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl text-sm font-medium border border-rose-100 dark:border-rose-800 text-center animate-in shake">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">E-mail</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><Mail size={20} /></div>
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all dark:text-white outline-none"
+                  placeholder="seu@email.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Senha</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><Lock size={20} /></div>
+                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all dark:text-white outline-none"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition-all disabled:opacity-70 mt-4"
+            >
+              {loading ? 'A entrar...' : <><ArrowRight size={20} /> Entrar na conta</>}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
-  );
+  )
 }
