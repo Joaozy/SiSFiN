@@ -1,146 +1,112 @@
 'use client'
 
 import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { LayoutDashboard, Lock, Mail, UserPlus } from 'lucide-react'
 import Link from 'next/link'
-import { Loader2, User, Phone, FileText, Mail, Lock, ArrowRight } from 'lucide-react'
-import { supabase } from '@/lib/supabase' // Importando do arquivo centralizado
-import { maskCPF, maskPhone } from '@/lib/masks'
 
 export default function CadastroPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [sucesso, setSucesso] = useState(false)
   const router = useRouter()
 
-  const [formData, setFormData] = useState({
-    nome: '',
-    email: '',
-    senha: '',
-    cpf: '',
-    celular: ''
-  })
-
-  const handleChange = (field: string, value: string) => {
-    let formattedValue = value
-    if (field === 'cpf') formattedValue = maskCPF(value)
-    if (field === 'celular') formattedValue = maskPhone(value)
-    setFormData(prev => ({ ...prev, [field]: formattedValue }))
-  }
-
-  const handleCadastro = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError('')
-    
-    try {
-      // 1. Criar o Usuário no Sistema de Autenticação (Auth)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.senha,
-      })
+    setError(null)
+    setSucesso(false)
 
-      if (authError) throw authError
-      if (!authData.user) throw new Error("Erro: Usuário Auth não criado.")
+    const { error } = await supabase.auth.signUp({ 
+      email, 
+      password 
+    })
 
-      console.log("✅ Usuário Auth criado:", authData.user.id)
-
-      // 2. Criar o Perfil Público (Banco de Dados)
-      const { error: profileError } = await supabase
-        .from('perfil')
-        .insert({
-          id: authData.user.id, // OBRIGATÓRIO: Mesmo ID do Auth
-          nome_completo: formData.nome,
-          email: formData.email,
-          cpf: formData.cpf,
-          celular: formData.celular,
-          whatsapp_verificado: true
-        })
-
-      if (profileError) {
-        console.error("Erro perfil:", profileError)
-        // Não travamos o fluxo aqui, pois o login principal já existe
-      }
-
-      // 3. Forçar o Login para garantir a sessão no navegador
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.senha
-      })
-
-      if (loginError) throw loginError
-
-      alert("Cadastro realizado com sucesso!")
-      router.push('/') // Vai para o Dashboard
-      router.refresh() // Atualiza os componentes do servidor
-
-    } catch (err: any) {
-      console.error(err)
-      setError(err.message || "Erro desconhecido ao cadastrar")
-    } finally {
+    if (error) {
+      setError('Erro ao criar conta: ' + error.message)
       setLoading(false)
+    } else {
+      setSucesso(true)
+      setLoading(false)
+      // Redireciona para o login após 3 segundos
+      setTimeout(() => {
+        router.push('/login')
+      }, 3000)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-      <div className="bg-gray-800 border border-gray-700 p-8 rounded-2xl shadow-xl w-full max-w-lg">
-        <h1 className="text-2xl font-bold text-white mb-6 text-center">Cadastro</h1>
-        
-        <form onSubmit={handleCadastro} className="space-y-4">
-           {/* Nome */}
-           <div>
-            <label className="text-gray-300 text-sm">Nome</label>
-            <div className="relative mt-1">
-                <User className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-                <input type="text" required value={formData.nome} onChange={e => handleChange('nome', e.target.value)} className="w-full pl-10 p-3 bg-gray-900 border border-gray-600 rounded text-white" />
+    <div className="flex items-center justify-center p-4 min-h-[85vh]">
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-[0%] -right-[5%] w-[40%] h-[40%] bg-cyan-500/10 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="w-full max-w-[420px] relative z-10 animate-in fade-in zoom-in-95 duration-700">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-gray-700 p-8 md:p-10">
+          
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg -rotate-3">
+              <UserPlus className="w-8 h-8 text-white rotate-3" />
             </div>
-           </div>
-           
-           {/* CPF e Celular */}
-           <div className="grid grid-cols-2 gap-4">
-             <div>
-                <label className="text-gray-300 text-sm">CPF</label>
-                <div className="relative mt-1">
-                    <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-                    <input type="text" required value={formData.cpf} onChange={e => handleChange('cpf', e.target.value)} className="w-full pl-10 p-3 bg-gray-900 border border-gray-600 rounded text-white" maxLength={14} />
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Criar Conta</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Comece a controlar suas finanças hoje</p>
+          </div>
+
+          {sucesso ? (
+            <div className="text-center p-6 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl border border-emerald-100 dark:border-emerald-800 animate-in zoom-in">
+              <h3 className="text-lg font-bold text-emerald-700 dark:text-emerald-400 mb-2">Conta criada com sucesso!</h3>
+              <p className="text-emerald-600 dark:text-emerald-500 text-sm">Redirecionando para o login...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSignUp} className="space-y-5">
+              {error && (
+                <div className="p-4 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl text-sm font-medium border border-rose-100 dark:border-rose-800 text-center animate-in shake">
+                  {error}
                 </div>
-             </div>
-             <div>
-                <label className="text-gray-300 text-sm">Celular</label>
-                <div className="relative mt-1">
-                    <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-                    <input type="text" required value={formData.celular} onChange={e => handleChange('celular', e.target.value)} className="w-full pl-10 p-3 bg-gray-900 border border-gray-600 rounded text-white" maxLength={15} />
+              )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">E-mail</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><Mail size={20} /></div>
+                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all dark:text-white outline-none"
+                    placeholder="seu@email.com"
+                  />
                 </div>
-             </div>
-           </div>
+              </div>
 
-           {/* Email */}
-           <div>
-            <label className="text-gray-300 text-sm">Email</label>
-            <div className="relative mt-1">
-                <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-                <input type="email" required value={formData.email} onChange={e => handleChange('email', e.target.value)} className="w-full pl-10 p-3 bg-gray-900 border border-gray-600 rounded text-white" />
-            </div>
-           </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Senha</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><Lock size={20} /></div>
+                  <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} minLength={6}
+                    className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all dark:text-white outline-none"
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+              </div>
 
-           {/* Senha */}
-           <div>
-            <label className="text-gray-300 text-sm">Senha</label>
-             <div className="relative mt-1">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-                <input type="password" required value={formData.senha} onChange={e => handleChange('senha', e.target.value)} className="w-full pl-10 p-3 bg-gray-900 border border-gray-600 rounded text-white" />
-            </div>
-           </div>
+              <button type="submit" disabled={loading}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition-all disabled:opacity-70 mt-4"
+              >
+                {loading ? 'Criando conta...' : 'Cadastrar agora'}
+              </button>
+            </form>
+          )}
 
-           {error && <p className="text-red-400 text-center bg-red-900/30 p-2 rounded">{error}</p>}
-
-           <button type="submit" disabled={loading} className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold p-3 rounded flex justify-center items-center gap-2">
-             {loading ? <Loader2 className="animate-spin" /> : <>Criar Conta <ArrowRight size={20}/></>}
-           </button>
-        </form>
-        
-        <div className="mt-4 text-center">
-            <Link href="/login" className="text-emerald-400 text-sm">Já tenho conta? Fazer Login</Link>
+          <div className="mt-8 text-center">
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              Já tem uma conta?{' '}
+              <Link href="/login" className="font-bold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors">
+                Entre aqui
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

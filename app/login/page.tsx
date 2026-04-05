@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { LayoutDashboard, Lock, Mail, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -29,7 +30,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex items-center justify-center p-4 min-h-[85vh]">
-      {/* Efeitos de Fundo da Página Inteira */}
+      {/* Efeitos de Fundo */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
         <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-[0%] -right-[5%] w-[40%] h-[40%] bg-cyan-500/10 rounded-full blur-3xl"></div>
@@ -43,7 +44,7 @@ export default function LoginPage() {
               <LayoutDashboard className="w-8 h-8 text-white -rotate-3" />
             </div>
             <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Bem-vindo</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-2">Aceda à sua inteligência financeira</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Acesse sua inteligência financeira</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -78,9 +79,19 @@ export default function LoginPage() {
             <button type="submit" disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition-all disabled:opacity-70 mt-4"
             >
-              {loading ? 'A entrar...' : <><ArrowRight size={20} /> Entrar na conta</>}
+              {loading ? 'Entrando...' : <><ArrowRight size={20} /> Entrar na conta</>}
             </button>
           </form>
+
+          {/* Botão de Cadastro */}
+          <div className="mt-8 text-center">
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              Ainda não tem uma conta?{' '}
+              <Link href="/cadastro" className="font-bold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors">
+                Cadastre-se aqui
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
