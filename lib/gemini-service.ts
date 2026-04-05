@@ -159,7 +159,7 @@ export async function processarMensagemWhatsApp(
             const dataFormatada = new Date(inserido.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
             // Retorno formatado exatamente como você pediu
-            return `✅ Anotado! Transacao #${inserido.id}\n💰 R$ ${inserido.valor.toFixed(2)}\n📂 ${inserido.categoria}\n📝 ${inserido.descricao}\n📅 data: ${dataFormatada}`;
+            return `✅ Anotado! Transacao #${inserido.id_curto}\n💰 R$ ${inserido.valor.toFixed(2)}\n📂 ${inserido.categoria}\n📝 ${inserido.descricao}\n📅 data: ${dataFormatada}`;
         }
 
         // 2. FERRAMENTA DE EDITAR
@@ -190,7 +190,7 @@ export async function processarMensagemWhatsApp(
 
             const dataFormatada = new Date(editado.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             
-            return `✏️ *Transação #${editado.id} alterada com sucesso!*\n💰 R$ ${editado.valor.toFixed(2)}\n📂 ${editado.categoria}\n📝 ${editado.descricao}\n📅 data: ${dataFormatada}`;
+            return `✏️ *Transação #${editado.id_curto} alterada com sucesso!*\n💰 R$ ${editado.valor.toFixed(2)}\n📂 ${editado.categoria}\n📝 ${editado.descricao}\n📅 data: ${dataFormatada}`;
         }
         
         // (Futuramente podemos adicionar aqui o bloco 'consultar_transacao')
