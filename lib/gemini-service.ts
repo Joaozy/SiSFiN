@@ -16,7 +16,6 @@ REGRAS ABSOLUTAS:
 4. Assuma que a data é sempre "Hoje" (formato ISO), a menos que o usuário especifique outra.
 `;
 
-// Função principal que processa Texto ou Mídia
 export async function processarMensagemWhatsApp(
     texto: string | null, 
     userId: string, 
@@ -25,7 +24,6 @@ export async function processarMensagemWhatsApp(
   try {
     if (!process.env.OPENROUTER_API_KEY) throw new Error("Sem chave API");
 
-    // Monta a mensagem para a IA
     const userContent: any[] = [];
     
     if (texto) userContent.push({ type: 'text', text: texto });
@@ -45,7 +43,6 @@ export async function processarMensagemWhatsApp(
        }
     }
 
-    // Chamada à IA
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
        method: 'POST',
        headers: {
@@ -110,6 +107,22 @@ export async function processarMensagemWhatsApp(
                 required: ['id_numero']
               }
             }
+          },
+          {
+            type: 'function',
+            function: {
+              name: 'gerar_relatorio',
+              description: 'Gera um relatório somando os valores de um período (hoje, semana, mes, sempre) e opcionalmente filtra por categoria.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  periodo: { type: 'string', enum: ['hoje', 'semana', 'mes', 'sempre'] },
+                  categoria: { type: 'string', description: 'Deixe vazio para ver todas.' },
+                  tipo: { type: 'string', enum: ['despesa', 'receita', 'ambos'] }
+                },
+                required: ['periodo']
+              }
+            }
           }
         ]
        })
@@ -117,19 +130,16 @@ export async function processarMensagemWhatsApp(
 
     const data = await response.json();
     
-    // 🔥 DEDO-DURO: Vai imprimir no terminal do VS Code exatamente o que o OpenRouter respondeu
     console.log("\n🤖 --- RESPOSTA DO OPENROUTER ---");
     console.log(JSON.stringify(data, null, 2));
     console.log("----------------------------------\n");
 
-    // Verifica se houve erro de API (ex: sem créditos, erro de modelo)
     if (data.error) {
         return `❌ Erro na IA: ${data.error.message}`;
     }
 
     const message = data.choices?.[0]?.message;
     
-    // EXECUÇÃO DAS FERRAMENTAS
     if (message?.tool_calls?.length > 0) {
         const toolCall = message.tool_calls[0];
         const params = JSON.parse(toolCall.function.arguments);
@@ -155,28 +165,24 @@ export async function processarMensagemWhatsApp(
                 return `❌ Erro ao salvar no banco: ${error.message}`;
             }
             
-            // Formatando a data para o padrão DD/MM/YYYY
             const dataFormatada = new Date(inserido.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
-            // Retorno formatado exatamente como você pediu
             return `✅ Anotado! Transacao #${inserido.id_curto}\n💰 R$ ${inserido.valor.toFixed(2)}\n📂 ${inserido.categoria}\n📝 ${inserido.descricao}\n📅 data: ${dataFormatada}`;
         }
 
         // 2. FERRAMENTA DE EDITAR
         else if (funcName === 'editar_transacao') {
-            // Separa apenas os campos que o Gemini decidiu que precisam ser alterados
             const atualizacoes: any = {};
             if (params.valor) atualizacoes.valor = params.valor;
             if (params.categoria) atualizacoes.categoria = params.categoria.charAt(0).toUpperCase() + params.categoria.slice(1);
             if (params.descricao) atualizacoes.descricao = params.descricao;
             if (params.tipo) atualizacoes.tipo = params.tipo;
 
-            // Vai ao Supabase e atualiza a linha onde o 'id' é igual ao que o cliente pediu
             const { data: editado, error } = await supabaseAdmin
                 .from('transacoes')
                 .update(atualizacoes)
-                .eq('id_curto', params.id_numero) // Assumindo que a coluna primária no banco se chama 'id'
-                .eq('usuario_id', userId)   // Segurança: Só edita se a transação for deste celular
+                .eq('id_curto', params.id_numero)
+                .eq('usuario_id', userId)
                 .select().single();
 
             if (error) {
@@ -192,11 +198,67 @@ export async function processarMensagemWhatsApp(
             
             return `✏️ *Transação #${editado.id_curto} alterada com sucesso!*\n💰 R$ ${editado.valor.toFixed(2)}\n📂 ${editado.categoria}\n📝 ${editado.descricao}\n📅 data: ${dataFormatada}`;
         }
-        
-        // (Futuramente podemos adicionar aqui o bloco 'consultar_transacao')
+
+        // 3. FERRAMENTA DE RELATÓRIO
+        else if (funcName === 'gerar_relatorio') {
+            const { periodo, categoria, tipo } = params;
+            
+            let dataInicio = new Date();
+            dataInicio.setHours(0,0,0,0);
+
+            if (periodo === 'semana') {
+                dataInicio.setDate(dataInicio.getDate() - 7);
+            } else if (periodo === 'mes') {
+                dataInicio.setDate(1); 
+            } else if (periodo === 'sempre') {
+                dataInicio = new Date('2000-01-01');
+            }
+
+            let query = supabaseAdmin
+                .from('transacoes')
+                .select('*')
+                .eq('usuario_id', userId)
+                .gte('data', dataInicio.toISOString());
+
+            if (categoria) {
+                query = query.ilike('categoria', `%${categoria}%`); 
+            }
+
+            const { data: transacoes, error } = await query;
+
+            if (error) return `❌ Erro ao buscar relatório: ${error.message}`;
+            if (!transacoes || transacoes.length === 0) return `📊 *Relatório (${periodo})*\nNenhuma transação encontrada neste período.`;
+
+            let totalDespesas = 0;
+            let totalReceitas = 0;
+            let categoriasCount: Record<string, number> = {};
+
+            transacoes.forEach((t: any) => {
+                if (t.tipo === 'despesa') {
+                    totalDespesas += t.valor;
+                    if(!categoriasCount[t.categoria]) categoriasCount[t.categoria] = 0;
+                    categoriasCount[t.categoria] += t.valor;
+                } else {
+                    totalReceitas += t.valor;
+                }
+            });
+
+            let resposta = `📊 *Seu Relatório (${periodo})*\n\n`;
+            if (tipo !== 'receita') resposta += `🔴 Despesas: R$ ${totalDespesas.toFixed(2)}\n`;
+            if (tipo !== 'despesa') resposta += `🟢 Receitas: R$ ${totalReceitas.toFixed(2)}\n`;
+            
+            if (!categoria && totalDespesas > 0) {
+                 resposta += `\n*Onde você mais gastou:*\n`;
+                 const ranking = Object.entries(categoriasCount).sort((a, b) => b[1] - a[1]);
+                 for(let [cat, val] of ranking) {
+                     resposta += `📂 ${cat}: R$ ${val.toFixed(2)}\n`;
+                 }
+            }
+
+            return resposta;
+        }
     }
 
-    // Se a IA não chamou nenhuma ferramenta e mandou texto
     return message?.content || "Desculpe, não entendi.";
 
   } catch (error: any) {
