@@ -8,7 +8,7 @@ const ACCESS_TOKEN = process.env.WHATSAPP_API_TOKEN;
 export async function GET(request: NextRequest) { 
   
   // COLOQUE SEU NÚMERO AQUI (com 55 e DDD)
-  const numeroDestino = '5579991159138'; 
+  const numeroDestino = '557998134523'; 
 
   try {
     const response = await fetch(`${FB_API_URL}/${PHONE_NUMBER_ID}/messages`, {
