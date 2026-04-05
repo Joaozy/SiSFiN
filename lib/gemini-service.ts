@@ -135,11 +135,11 @@ export async function processarMensagemWhatsApp(
         const params = JSON.parse(toolCall.function.arguments);
         const funcName = toolCall.function.name;
 
+        // 1. FERRAMENTA DE REGISTAR
         if (funcName === 'registrar_transacao') {
             if (params.categoria) params.categoria = params.categoria.charAt(0).toUpperCase() + params.categoria.slice(1);
             if (!params.metodo_pagamento) params.metodo_pagamento = 'WhatsApp';
 
-            // ATENÇÃO AQUI: Tenta inserir no Supabase
             const { data: inserido, error } = await supabaseAdmin.from('transacoes').insert({
                 tipo: params.tipo,
                 valor: params.valor,
@@ -155,11 +155,45 @@ export async function processarMensagemWhatsApp(
                 return `❌ Erro ao salvar no banco: ${error.message}`;
             }
             
-            // Retorno de sucesso formatado
-            return `✅ *Anotado!* \n💰 R$ ${inserido.valor.toFixed(2)}\n📂 ${inserido.categoria}\n📝 ${inserido.descricao}`;
+            // Formatando a data para o padrão DD/MM/YYYY
+            const dataFormatada = new Date(inserido.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+            // Retorno formatado exatamente como você pediu
+            return `✅ Anotado! Transacao #${inserido.id}\n💰 R$ ${inserido.valor.toFixed(2)}\n📂 ${inserido.categoria}\n📝 ${inserido.descricao}\n📅 data: ${dataFormatada}`;
         }
 
-        // ... as outras ferramentas de consulta e edição continuam aqui ...
+        // 2. FERRAMENTA DE EDITAR
+        else if (funcName === 'editar_transacao') {
+            // Separa apenas os campos que o Gemini decidiu que precisam ser alterados
+            const atualizacoes: any = {};
+            if (params.valor) atualizacoes.valor = params.valor;
+            if (params.categoria) atualizacoes.categoria = params.categoria.charAt(0).toUpperCase() + params.categoria.slice(1);
+            if (params.descricao) atualizacoes.descricao = params.descricao;
+            if (params.tipo) atualizacoes.tipo = params.tipo;
+
+            // Vai ao Supabase e atualiza a linha onde o 'id' é igual ao que o cliente pediu
+            const { data: editado, error } = await supabaseAdmin
+                .from('transacoes')
+                .update(atualizacoes)
+                .eq('id_curto', params.id_numero) // Assumindo que a coluna primária no banco se chama 'id'
+                .eq('usuario_id', userId)   // Segurança: Só edita se a transação for deste celular
+                .select().single();
+
+            if (error) {
+                console.error("Erro ao editar no Supabase:", error);
+                return `❌ Erro ao editar a transação: ${error.message}`;
+            }
+
+            if (!editado) {
+                return `⚠️ Não encontrei a transação #${params.id_numero}. Tem certeza que o número está correto?`;
+            }
+
+            const dataFormatada = new Date(editado.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            
+            return `✏️ *Transação #${editado.id} alterada com sucesso!*\n💰 R$ ${editado.valor.toFixed(2)}\n📂 ${editado.categoria}\n📝 ${editado.descricao}\n📅 data: ${dataFormatada}`;
+        }
+        
+        // (Futuramente podemos adicionar aqui o bloco 'consultar_transacao')
     }
 
     // Se a IA não chamou nenhuma ferramenta e mandou texto
