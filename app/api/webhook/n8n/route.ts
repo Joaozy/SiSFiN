@@ -13,24 +13,15 @@ const supabaseAdmin = createClient(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { telefone, mensagem } = body;
-
-    console.log('\n================ INÍCIO DO TESTE ================');
-    console.log(`📱 1. TELEFONE RECEBIDO: "${telefone}" (Tipo: ${typeof telefone}, Tamanho: ${String(telefone).length})`);
     
-    // TESTE A: Tentar ler qualquer coisa da tabela (Prova de Conexão)
-    const { data: todosUsuarios, error: erroTodos } = await supabaseAdmin
-      .from('usuarios_whatsapp')
-      .select('telefone, user_id')
-      .limit(3);
+    // 🚨 CORREÇÃO 1: Pegar os nomes corretos que vêm do n8n (texto e midia)
+    const { telefone, texto, midia } = body;
 
-    if (erroTodos) {
-      console.log('❌ 2. ERRO DE CONEXÃO/PERMISSÃO NO SUPABASE:', erroTodos.message);
-    } else {
-      console.log('✅ 2. CONEXÃO BEM SUCEDIDA. Alguns números no banco:', todosUsuarios);
-    }
-
-    // TESTE B: A busca exata pelo seu número
+    console.log('\n================ INÍCIO DO WEBHOOK ================');
+    console.log(`📱 TELEFONE: "${telefone}"`);
+    console.log(`💬 TEXTO: "${texto}"`);
+    console.log(`📎 TEM MÍDIA?: ${midia ? 'Sim (Áudio ou Imagem recebidos)' : 'Não'}`);
+    
     const { data: usuario, error: erroUsuario } = await supabaseAdmin
       .from('usuarios_whatsapp')
       .select('user_id, telefone')
@@ -38,20 +29,22 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (erroUsuario) {
-      console.log('⚠️ 3. ERRO NA BUSCA EXATA (Single):', erroUsuario.message, erroUsuario.details);
-    } else {
-      console.log('✅ 3. USUÁRIO ENCONTRADO COM SUCESSO! Dados:', usuario);
-    }
-    console.log('=================================================\n');
+      console.log('⚠️ ERRO NA BUSCA DO USUÁRIO:', erroUsuario.message);
+    } 
 
     let respostaIA = "";
 
     if (!usuario) {
-      respostaIA = "Olá! Não encontrei o seu registo. Por favor, aceda à nossa aplicação para vincular o seu número.";
+      respostaIA = "Olá! Não encontrei o seu registo. Por favor, aceda à nossa aplicação para criar a sua conta.";
     } else {
-      respostaIA = await processarMensagemWhatsApp(mensagem, usuario.user_id);
+      // 🚨 CORREÇÃO 2: Enviar o texto e a mídia para o Gemini processar
+      respostaIA = await processarMensagemWhatsApp(texto, usuario.user_id, midia);
     }
 
+    console.log('🤖 RESPOSTA IA GERADA:', respostaIA);
+    console.log('=================================================\n');
+
+    // Retorna a resposta para o n8n
     return NextResponse.json({
       sucesso: true,
       respostaWhatsapp: respostaIA
