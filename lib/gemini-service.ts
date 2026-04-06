@@ -69,7 +69,7 @@ REGRAS ABSOLUTAS:
       },
       body: JSON.stringify({
         // 🚨 ATENÇÃO: Certifique-se de que o modelo aqui é o 1.5-flash ou 1.5-pro!
-        model: "google/gemini-flash-1.5", 
+        model: "google/gemini-2.0-flash-001", 
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userContent }
