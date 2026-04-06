@@ -38,22 +38,34 @@ export async function POST(req: NextRequest) {
       console.log('⚠️ ERRO NA BUSCA DO USUÁRIO:', erroUsuario.message);
     } 
 
-    let respostaIA = "";
+    let respostaTexto = "";
+    let linkPdf: string | undefined = undefined;
 
     if (!usuario) {
-      respostaIA = "Olá! Não encontrei o seu registo. Por favor, aceda à nossa aplicação para criar a sua conta.";
+      respostaTexto = "Olá! Não encontrei o seu registo. Por favor, aceda à nossa aplicação para criar a sua conta.";
     } else {
       // Enviar o texto e a mídia para o Gemini processar
-      respostaIA = await processarMensagemWhatsApp(texto, usuario.user_id, midia);
+      // 🚀 AGORA O SERVIÇO RETORNA { texto: string, pdfUrl?: string }
+      const respostaIA = await processarMensagemWhatsApp(texto, usuario.user_id, midia);
+      
+      if (typeof respostaIA === 'object' && respostaIA !== null) {
+         respostaTexto = respostaIA.texto;
+         linkPdf = respostaIA.pdfUrl;
+      } else {
+         // Fallback de segurança caso a IA retorne apenas string
+         respostaTexto = respostaIA as string;
+      }
     }
 
-    console.log('🤖 RESPOSTA IA GERADA:', respostaIA);
+    console.log('🤖 RESPOSTA IA GERADA:', respostaTexto);
+    if (linkPdf) console.log('📄 PDF GERADO:', linkPdf);
     console.log('=================================================\n');
 
     // Retorna a resposta para o n8n
     return NextResponse.json({
       sucesso: true,
-      respostaWhatsapp: respostaIA
+      respostaWhatsapp: respostaTexto,
+      arquivoUrl: linkPdf || null // 🚀 ENVIANDO O LINK PARA O N8N
     });
 
   } catch (error) {
