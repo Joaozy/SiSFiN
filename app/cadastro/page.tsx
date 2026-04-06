@@ -46,17 +46,16 @@ export default function CadastroPage() {
       const { error: dbError } = await supabase
         .from('usuarios_whatsapp')
         .insert({
-          usuario_id: authData.user.id,
+          user_id: authData.user.id, // 🚨 CORRIGIDO AQUI: user_id em vez de usuario_id
           nome: nome,
           cpf: cpf.replace(/\D/g, ''),
           telefone: numeroLimpo
         })
 
-      // 🚨 AQUI ESTÁ A CORREÇÃO: Se der erro, para tudo e mostra na tela!
       if (dbError) {
         setError('Erro ao ligar número ao banco: ' + dbError.message)
         setLoading(false)
-        return // Impede de mostrar o "Sucesso"
+        return
       }
 
       setSucesso(true)
