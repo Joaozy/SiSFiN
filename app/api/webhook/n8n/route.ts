@@ -17,22 +17,40 @@ export async function POST(req: NextRequest) {
     // Pegar os dados que vêm do n8n
     const { telefone, texto, midia } = body;
 
-    // 🧹 LIMPEZA DO FORMATO DO ARQUIVO (A CORREÇÃO ESTÁ AQUI)
+    // 🧹 LIMPEZA DO FORMATO DO ARQUIVO
     if (midia && midia.mimeType) {
-      // Transforma "audio/ogg; codecs=opus" em apenas "audio/ogg"
       midia.mimeType = midia.mimeType.split(';')[0].trim();
     }
 
+    // 🛡️ TRATAMENTO DO NONO DÍGITO (BRASIL)
+    let foneLimpo = String(telefone).replace(/\D/g, ''); // Remove +, -, espaços
+    let numerosParaBuscar = [foneLimpo];
+
+    // Se for um número do Brasil (DDD 55), geramos as duas possibilidades
+    if (foneLimpo.startsWith('55')) {
+        if (foneLimpo.length === 12) {
+            // Está sem o 9 (ex: 55 79 88887777) -> Cria a versão com o 9
+            numerosParaBuscar.push(`55${foneLimpo.substring(2, 4)}9${foneLimpo.substring(4)}`);
+        } else if (foneLimpo.length === 13) {
+            // Está com o 9 (ex: 55 79 988887777) -> Cria a versão sem o 9
+            numerosParaBuscar.push(`55${foneLimpo.substring(2, 4)}${foneLimpo.substring(5)}`);
+        }
+    }
+
     console.log('\n================ INÍCIO DO WEBHOOK ================');
-    console.log(`📱 TELEFONE: "${telefone}"`);
+    console.log(`📱 TELEFONE ORIGINAL: "${telefone}"`);
+    console.log(`🔍 BUSCANDO NO BANCO POR:`, numerosParaBuscar);
     console.log(`💬 TEXTO: "${texto}"`);
     console.log(`📎 TEM MÍDIA?: ${midia ? `Sim (${midia.mimeType})` : 'Não'}`);
     
-    const { data: usuario, error: erroUsuario } = await supabaseAdmin
+    // 🚀 Busca o usuário testando as duas versões do número e traz TODAS as colunas (*)
+    const { data: usuarios, error: erroUsuario } = await supabaseAdmin
       .from('usuarios_whatsapp')
-      .select('user_id, telefone')
-      .eq('telefone', String(telefone))
-      .single();
+      .select('*') 
+      .in('telefone', numerosParaBuscar)
+      .limit(1);
+
+    const usuario = usuarios && usuarios.length > 0 ? usuarios[0] : null;
 
     if (erroUsuario) {
       console.log('⚠️ ERRO NA BUSCA DO USUÁRIO:', erroUsuario.message);
@@ -42,17 +60,17 @@ export async function POST(req: NextRequest) {
     let linkPdf: string | undefined = undefined;
 
     if (!usuario) {
-      respostaTexto = "Olá! Não encontrei o seu registo. Por favor, aceda à nossa aplicação para criar a sua conta.";
+      // Se não achar nenhuma das versões, aí sim é usuário novo!
+      const respostaIA = await processarMensagemWhatsApp(texto, String(numerosParaBuscar[0]), null, midia);
+      respostaTexto = typeof respostaIA === 'object' ? respostaIA.texto : respostaIA as string;
     } else {
-      // Enviar o texto e a mídia para o Gemini processar
-      // 🚀 AGORA O SERVIÇO RETORNA { texto: string, pdfUrl?: string }
-      const respostaIA = await processarMensagemWhatsApp(texto, usuario.user_id, midia);
+      // 🚀 Encontrou! Passa a bola para o Cérebro 2 (Financeiro)
+      const respostaIA = await processarMensagemWhatsApp(texto, usuario.telefone, usuario, midia);
       
       if (typeof respostaIA === 'object' && respostaIA !== null) {
          respostaTexto = respostaIA.texto;
          linkPdf = respostaIA.pdfUrl;
       } else {
-         // Fallback de segurança caso a IA retorne apenas string
          respostaTexto = respostaIA as string;
       }
     }
@@ -65,7 +83,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       sucesso: true,
       respostaWhatsapp: respostaTexto,
-      arquivoUrl: linkPdf || null // 🚀 ENVIANDO O LINK PARA O N8N
+      arquivoUrl: linkPdf || null 
     });
 
   } catch (error) {
