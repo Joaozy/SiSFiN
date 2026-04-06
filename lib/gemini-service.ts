@@ -160,13 +160,20 @@ REGRAS ABSOLUTAS:
             if (params.categoria) params.categoria = params.categoria.charAt(0).toUpperCase() + params.categoria.slice(1);
             if (!params.metodo_pagamento) params.metodo_pagamento = 'WhatsApp';
 
+            // 🕰️ CORREÇÃO DO FUSO HORÁRIO
+            let dataFinal = new Date().toISOString();
+            if (params.data) {
+                // Se a IA mandou só a data (YYYY-MM-DD), fixamos para o meio-dia no horário do Brasil
+                dataFinal = params.data.includes('T') ? params.data : `${params.data}T12:00:00-03:00`;
+            }
+
             const { data: inserido, error } = await supabaseAdmin.from('transacoes').insert({
                 tipo: params.tipo,
                 valor: params.valor,
                 categoria: params.categoria,
                 descricao: params.descricao || 'Via WhatsApp',
                 metodo_pagamento: params.metodo_pagamento,
-                data: params.data || new Date().toISOString(),
+                data: dataFinal,
                 usuario_id: userId
             }).select().single();
 
