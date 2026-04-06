@@ -5,17 +5,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY! 
 );
 
-const SYSTEM_PROMPT = `
-Você é o FinChat Pro, um assistente financeiro inteligente de WhatsApp.
-Sua missão é interpretar as mensagens e OBRIGATORIAMENTE acionar as ferramentas de banco de dados.
-
-REGRAS ABSOLUTAS:
-1. SEMPRE que o usuário relatar um gasto, compra ou recebimento (seja por texto, áudio ou imagem), VOCÊ DEVE chamar a ferramenta 'registrar_transacao'. Não responda apenas com texto.
-2. Extraia o valor numérico, defina se é 'despesa' ou 'receita' e crie uma categoria curta (ex: Alimentação, Transporte, Lazer).
-3. Para consultar ou editar, use as ferramentas correspondentes indicando o ID Numérico.
-4. Assuma que a data é sempre "Hoje" (formato ISO), a menos que o usuário especifique outra.
-`;
-
 export async function processarMensagemWhatsApp(
     texto: string | null, 
     userId: string, 
@@ -23,6 +12,27 @@ export async function processarMensagemWhatsApp(
 ) {
   try {
     if (!process.env.OPENROUTER_API_KEY) throw new Error("Sem chave API");
+
+    // 🚀 CALENDÁRIO DINÂMICO PARA A IA
+    const hoje = new Date();
+    const dataAtual = hoje.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const anoAtual = hoje.getFullYear();
+
+    const SYSTEM_PROMPT = `
+Você é o FinChat Pro, um assistente financeiro inteligente de WhatsApp.
+Sua missão é interpretar as mensagens e OBRIGATORIAMENTE acionar as ferramentas de banco de dados.
+
+REGRAS ABSOLUTAS:
+1. SEMPRE que o usuário relatar um gasto, compra ou recebimento (seja por texto, áudio ou imagem), VOCÊ DEVE chamar a ferramenta 'registrar_transacao'.
+2. Extraia o valor numérico e defina uma categoria curta.
+3. DATAS (MUITO IMPORTANTE):
+   - Hoje é dia ${dataAtual}. O ano atual é ${anoAtual}.
+   - A data na ferramenta 'registrar_transacao' DEVE estar RIGOROSAMENTE no formato ISO 8601 (YYYY-MM-DD).
+   - Se ele disser "ontem", calcule a data correta no formato YYYY-MM-DD.
+   - Se ele falar um dia e mês (ex: 02/04), inclua o ano atual.
+   - Se não especificar a data, use a data de hoje (YYYY-MM-DD).
+4. Para consultar ou editar, use o ID Numérico.
+`;
 
     const userContent: any[] = [];
     
