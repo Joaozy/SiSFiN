@@ -38,20 +38,13 @@ export default function CadastroPage() {
 
     // 2. Tenta salvar os dados pessoais
     if (authData.user) {
-      // Deixa apenas os números
       let numeroLimpo = telefone.replace(/\D/g, '');
-      
-      // Se a pessoa digitou o 55, retiramos temporariamente para padronizar
       if (numeroLimpo.startsWith('55') && numeroLimpo.length > 11) {
         numeroLimpo = numeroLimpo.substring(2);
       }
-
-      // ✂️ A TESOURA: Se sobrou 11 dígitos (DDD + 9 + 8 números) e o terceiro número for um '9', nós apagamos esse '9'
       if (numeroLimpo.length === 11 && numeroLimpo[2] === '9') {
         numeroLimpo = numeroLimpo.substring(0, 2) + numeroLimpo.substring(3);
       }
-
-      // Recoca o 55 no início para garantir o formato do WhatsApp
       numeroLimpo = `55${numeroLimpo}`;
 
       const { error: dbError } = await supabase
@@ -76,6 +69,7 @@ export default function CadastroPage() {
         router.push('/login')
       }, 3000)
     }
+  }
 
   return (
     <div className="flex items-center justify-center p-4 min-h-[85vh] py-12">
