@@ -13,54 +13,70 @@ export async function processarMensagemWhatsApp(
   try {
     if (!process.env.OPENROUTER_API_KEY) throw new Error("Sem chave API");
 
-    // 🚀 CALENDÁRIO DINÂMICO PARA A IA
     const hoje = new Date();
     const dataAtual = hoje.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const anoAtual = hoje.getFullYear();
 
+    // 1. BUSCAR A MEMÓRIA DO USUÁRIO
+    const { data: usuarioDb } = await supabaseAdmin
+        .from('usuarios_whatsapp')
+        .select('historico_mensagens')
+        .eq('user_id', userId)
+        .single();
+
+    let historico = usuarioDb?.historico_mensagens || [];
+    if (!Array.isArray(historico)) historico = [];
+
+    // 🧠 O NOVO CÉREBRO: Com o seu Catálogo Oficial
     const SYSTEM_PROMPT = `
-Você é o FinChat Pro, um assistente financeiro inteligente de WhatsApp.
-Sua missão é interpretar as mensagens e OBRIGATORIAMENTE acionar as ferramentas de banco de dados.
+Você é o FinChat Pro, um assistente financeiro de WhatsApp altamente inteligente.
+Sua missão é ouvir, ler imagens (recibos) e interpretar gastos, acionando SEMPRE as ferramentas de banco de dados.
+
+CATÁLOGO PADRÃO DE CATEGORIAS E SUBCATEGORIAS:
+- Renda: Salário, Renda de Juros, Dividendos, Dinheiro Inesperado, Reembolsos, Transferência de Poupança, Renda extra, Outros
+- Moradia: Aluguel/Parcelas do Imóvel, IPTU, Conta de Luz, Gás, Conta de Água, Telefone, Tv a Cabo, Internet, Eletrodomésticos, Faxina, Manutenção, Melhorias, Outros
+- Transporte: Parcelamento do Carro, Seguro do Carro, Combustível, Ônibus/Táxi, Reparos, Outros
+- Saude: Seguro de Vida, Consulta, Dentista, Medicamentos, Rotina saúdavel, Veterinário, Outros
+- Doacoes/Presentes: Presentes, Doações para Caridade, Doações Religiosas, Outros
+- Assinaturas: Streaming, Revistas, Nuvem, Outros
+- Vida Diaria: Supermercado, Suprimentos Pessoais, Roupas, Produtos de Limpeza, Educação, Jantar/Comer Fora, Salão de Beleza, Bebidas, Outros
+- Entretenimento: Filmes/Cinema, Música, Games, Shows, Livros, Hobbies, Fotografia, Esportes, Passeios, Loteria, Férias, Viagem, Teatro, Outros
+- Economias: Fundo de Emergência, Transferência de Poupança, Investimentos, Educação, Outros
+- Obrigacoes: Dívidas, Empréstimo estudantil, Outro empréstimo, Cartões de crédito, Taxas e Impostos, Outros
+- Outros: Outros
 
 REGRAS ABSOLUTAS:
-1. SEMPRE que o usuário relatar um gasto, compra ou recebimento (seja por texto, áudio ou imagem), VOCÊ DEVE chamar a ferramenta 'registrar_transacao'.
-2. Extraia o valor numérico e defina uma categoria curta.
-3. DATAS (MUITO IMPORTANTE):
-   - Hoje é dia ${dataAtual}. O ano atual é ${anoAtual}.
-   - A data na ferramenta 'registrar_transacao' DEVE estar RIGOROSAMENTE no formato ISO 8601 (YYYY-MM-DD).
-   - Se ele disser "ontem", calcule a data correta no formato YYYY-MM-DD.
-   - Se ele falar um dia e mês (ex: 02/04), inclua o ano atual.
-   - Se não especificar a data, use a data de hoje (YYYY-MM-DD).
-4. Para consultar ou editar, use o ID Numérico.
+1. CATEGORIZAÇÃO INDIVIDUAL: Tente usar as categorias da lista acima. PORÉM, se o usuário pedir para criar ou registrar em uma categoria/subcategoria diferente, OBEDEÇA E CRIE. O banco de dados separa tudo por usuário, então não afetará outras pessoas.
+2. LISTAR CATEGORIAS: Se o usuário não souber onde classificar e perguntar "Quais são as categorias?", liste o Catálogo Padrão de forma amigável para ele escolher.
+3. MEMÓRIA: Você tem acesso ao histórico. Se o usuário responder só com um valor, olhe o histórico para saber do que ele fala e registre a transação.
+4. DESCRIÇÃO OBRIGATÓRIA: Nunca use "Via WhatsApp". Escreva exatamente o que foi comprado.
+5. DATAS: Hoje é ${dataAtual}. Ano ${anoAtual}. Formato para o banco: YYYY-MM-DD.
 `;
 
     const userContent: any[] = [];
 
-    // 1. Adiciona o texto (se o cliente enviou texto ou legenda)
     if (texto) {
       userContent.push({ type: 'text', text: texto });
     } else if (midia && midia.tipo === 'audio') {
-      // Se não tiver texto mas tiver áudio, damos um comando para ele ouvir
-      userContent.push({ type: 'text', text: 'Ouça o áudio em anexo e registre a transação financeira.' });
+      userContent.push({ type: 'text', text: 'Transcreva este áudio com atenção cirúrgica aos valores numéricos e registre a transação.' });
     } else if (midia && midia.tipo === 'image') {
-      // Se for apenas imagem sem legenda
-      userContent.push({ type: 'text', text: 'Analise o recibo/imagem em anexo e registre a transação.' });
+      userContent.push({ type: 'text', text: 'Leia este recibo/imagem com precisão, identifique o estabelecimento, data e valor total, e registre a transação.' });
     }
 
-    // 2. Adiciona a Mídia (Áudio ou Imagem) formatada corretamente para o OpenRouter/Gemini
     if (midia && midia.data) {
-      // O segredo está aqui: o OpenRouter exige o prefixo data:mimeType;base64,
       const dataUri = `data:${midia.mimeType};base64,${midia.data}`;
-      
       userContent.push({
-        type: 'image_url', // Curiosidade: o OpenRouter exige que se chame 'image_url' mesmo que seja um áudio!
-        image_url: {
-          url: dataUri
-        }
+        type: 'image_url',
+        image_url: { url: dataUri }
       });
     }
 
-    // 3. Monta a requisição final para enviar ao OpenRouter
+    const mensagensParaIA = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...historico, 
+      { role: "user", content: userContent }
+    ];
+
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -68,61 +84,26 @@ REGRAS ABSOLUTAS:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // 🚨 ATENÇÃO: Certifique-se de que o modelo aqui é o 1.5-flash ou 1.5-pro!
         model: "google/gemini-2.0-flash-001", 
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userContent }
-        ],
+        messages: mensagensParaIA,
         tools: [
           {
             type: 'function',
             function: {
               name: 'registrar_transacao',
-              description: 'Salva uma nova transação financeira no banco de dados',
+              description: 'Salva uma nova transação financeira',
               parameters: {
                 type: 'object',
                 properties: {
                   tipo: { type: 'string', enum: ['despesa', 'receita'] },
                   valor: { type: 'number' },
                   categoria: { type: 'string' },
-                  descricao: { type: 'string' },
+                  subcategoria: { type: 'string' },
+                  descricao: { type: 'string', description: 'O item exato que foi comprado ou pago.' },
                   metodo_pagamento: { type: 'string' },
                   data: { type: 'string' }
                 },
-                required: ['tipo', 'valor', 'categoria']
-              }
-            }
-          },
-          {
-            type: 'function',
-            function: {
-              name: 'consultar_transacao',
-              description: 'Busca transação pelo ID Numérico',
-              parameters: {
-                type: 'object',
-                properties: {
-                  id_numero: { type: 'integer' }
-                },
-                required: ['id_numero']
-              }
-            }
-          },
-          {
-            type: 'function',
-            function: {
-              name: 'editar_transacao',
-              description: 'Edita transação pelo ID Numérico',
-              parameters: {
-                type: 'object',
-                properties: {
-                  id_numero: { type: 'integer' },
-                  valor: { type: 'number' },
-                  categoria: { type: 'string' },
-                  descricao: { type: 'string' },
-                  tipo: { type: 'string', enum: ['despesa', 'receita'] }
-                },
-                required: ['id_numero']
+                required: ['tipo', 'valor', 'categoria', 'subcategoria', 'descricao']
               }
             }
           },
@@ -130,13 +111,13 @@ REGRAS ABSOLUTAS:
             type: 'function',
             function: {
               name: 'gerar_relatorio',
-              description: 'Gera um relatório somando os valores de um período (hoje, semana, mes, sempre) e opcionalmente filtra por categoria.',
+              description: 'Gera relatório com filtros',
               parameters: {
                 type: 'object',
                 properties: {
                   periodo: { type: 'string', enum: ['hoje', 'semana', 'mes', 'sempre'] },
-                  categoria: { type: 'string', description: 'Deixe vazio para ver todas.' },
-                  tipo: { type: 'string', enum: ['despesa', 'receita', 'ambos'] }
+                  categoria: { type: 'string' },
+                  subcategoria: { type: 'string' }
                 },
                 required: ['periodo']
               }
@@ -146,154 +127,81 @@ REGRAS ABSOLUTAS:
        })
     });
 
-    // A correção estava aqui (de resposta.json() para response.json())
     const data = await response.json();
     
-    console.log("\n🤖 --- RESPOSTA DO OPENROUTER ---");
-    console.log(JSON.stringify(data, null, 2));
-    console.log("----------------------------------\n");
-
-    if (data.error) {
-        return `❌ Erro na IA: ${data.error.message}`;
-    }
+    if (data.error) return `❌ Erro na IA: ${data.error.message}`;
 
     const message = data.choices?.[0]?.message;
+    let respostaFinal = "Desculpe, não entendi.";
     
     if (message?.tool_calls?.length > 0) {
         const toolCall = message.tool_calls[0];
         const params = JSON.parse(toolCall.function.arguments);
         const funcName = toolCall.function.name;
 
-        // 1. FERRAMENTA DE REGISTAR
         if (funcName === 'registrar_transacao') {
-            if (params.categoria) params.categoria = params.categoria.charAt(0).toUpperCase() + params.categoria.slice(1);
-            if (!params.metodo_pagamento) params.metodo_pagamento = 'WhatsApp';
-
-            // 🕰️ CORREÇÃO DO FUSO HORÁRIO
             let dataFinal = new Date().toISOString();
-            if (params.data) {
-                // Se a IA mandou só a data (YYYY-MM-DD), fixamos para o meio-dia no horário do Brasil
-                dataFinal = params.data.includes('T') ? params.data : `${params.data}T12:00:00-03:00`;
-            }
+            if (params.data) dataFinal = params.data.includes('T') ? params.data : `${params.data}T12:00:00-03:00`;
 
             const { data: inserido, error } = await supabaseAdmin.from('transacoes').insert({
                 tipo: params.tipo,
                 valor: params.valor,
-                categoria: params.categoria,
-                descricao: params.descricao || 'Via WhatsApp',
-                metodo_pagamento: params.metodo_pagamento,
+                categoria: params.categoria.charAt(0).toUpperCase() + params.categoria.slice(1),
+                subcategoria: params.subcategoria.charAt(0).toUpperCase() + params.subcategoria.slice(1),
+                descricao: params.descricao,
+                metodo_pagamento: params.metodo_pagamento || 'WhatsApp',
                 data: dataFinal,
                 usuario_id: userId
             }).select().single();
 
             if (error) {
-                console.error("Erro no Supabase:", error);
-                return `❌ Erro ao salvar no banco: ${error.message}`;
+                respostaFinal = `❌ Erro ao salvar: ${error.message}`;
+            } else {
+                const dataFormatada = new Date(inserido.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+                respostaFinal = `✅ Anotado! Transação #${inserido.id_curto}\n💰 R$ ${inserido.valor.toFixed(2)}\n📂 ${inserido.categoria} > ${inserido.subcategoria}\n📝 ${inserido.descricao}\n📅 Data: ${dataFormatada}`;
             }
-            
-            const dataFormatada = new Date(inserido.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-
-            return `✅ Anotado! Transacao #${inserido.id_curto}\n💰 R$ ${inserido.valor.toFixed(2)}\n📂 ${inserido.categoria}\n📝 ${inserido.descricao}\n📅 data: ${dataFormatada}`;
-        }
-
-        // 2. FERRAMENTA DE EDITAR
-        else if (funcName === 'editar_transacao') {
-            const atualizacoes: any = {};
-            if (params.valor) atualizacoes.valor = params.valor;
-            if (params.categoria) atualizacoes.categoria = params.categoria.charAt(0).toUpperCase() + params.categoria.slice(1);
-            if (params.descricao) atualizacoes.descricao = params.descricao;
-            if (params.tipo) atualizacoes.tipo = params.tipo;
-
-            const { data: editado, error } = await supabaseAdmin
-                .from('transacoes')
-                .update(atualizacoes)
-                .eq('id_curto', params.id_numero)
-                .eq('usuario_id', userId)
-                .select().single();
-
-            if (error) {
-                console.error("Erro ao editar no Supabase:", error);
-                return `❌ Erro ao editar a transação: ${error.message}`;
-            }
-
-            if (!editado) {
-                return `⚠️ Não encontrei a transação #${params.id_numero}. Tem certeza que o número está correto?`;
-            }
-
-            const dataFormatada = new Date(editado.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-            
-            return `✏️ *Transação #${editado.id_curto} alterada com sucesso!*\n💰 R$ ${editado.valor.toFixed(2)}\n📂 ${editado.categoria}\n📝 ${editado.descricao}\n📅 data: ${dataFormatada}`;
-        }
-
-        // 3. FERRAMENTA DE RELATÓRIO
-        else if (funcName === 'gerar_relatorio') {
-            const { periodo, categoria, tipo } = params;
+        } else if (funcName === 'gerar_relatorio') {
+            const { periodo, categoria, subcategoria } = params;
             
             let dataInicio = new Date();
             dataInicio.setHours(0,0,0,0);
 
-            if (periodo === 'semana') {
-                dataInicio.setDate(dataInicio.getDate() - 7);
-            } else if (periodo === 'mes') {
-                dataInicio.setDate(1); 
-            } else if (periodo === 'sempre') {
-                dataInicio = new Date('2000-01-01');
-            }
+            if (periodo === 'semana') dataInicio.setDate(dataInicio.getDate() - 7);
+            else if (periodo === 'mes') dataInicio.setDate(1); 
+            else if (periodo === 'sempre') dataInicio = new Date('2000-01-01');
 
-            let query = supabaseAdmin
-                .from('transacoes')
-                .select('*')
-                .eq('usuario_id', userId)
-                .gte('data', dataInicio.toISOString());
-
-            if (categoria) {
-                query = query.ilike('categoria', `%${categoria}%`); 
-            }
+            let query = supabaseAdmin.from('transacoes').select('*').eq('usuario_id', userId).gte('data', dataInicio.toISOString());
+            if (categoria) query = query.ilike('categoria', `%${categoria}%`); 
+            if (subcategoria) query = query.ilike('subcategoria', `%${subcategoria}%`); 
 
             const { data: transacoes, error } = await query;
 
-            if (error) return `❌ Erro ao buscar relatório: ${error.message}`;
-            if (!transacoes || transacoes.length === 0) return `📊 *Relatório (${periodo})*\nNenhuma transação encontrada neste período.`;
-
-            let totalDespesas = 0;
-            let totalReceitas = 0;
-            let categoriasCount: Record<string, number> = {};
-
-            transacoes.forEach((t: any) => {
-                if (t.tipo === 'despesa') {
-                    totalDespesas += t.valor;
-                    if(!categoriasCount[t.categoria]) categoriasCount[t.categoria] = 0;
-                    categoriasCount[t.categoria] += t.valor;
-                } else {
-                    totalReceitas += t.valor;
-                }
-            });
-
-            let respostaTexto = `📊 *Seu Relatório (${periodo})*\n\n`;
-            if (tipo !== 'receita') respostaTexto += `🔴 Despesas: R$ ${totalDespesas.toFixed(2)}\n`;
-            if (tipo !== 'despesa') respostaTexto += `🟢 Receitas: R$ ${totalReceitas.toFixed(2)}\n`;
-            
-            if (!categoria && totalDespesas > 0) {
-                 respostaTexto += `\n*Onde você mais gastou:*\n`;
-                 const ranking = Object.entries(categoriasCount).sort((a, b) => b[1] - a[1]);
-                 for(let [cat, val] of ranking) {
-                     respostaTexto += `📂 ${cat}: R$ ${val.toFixed(2)}\n`;
-                 }
+            if (error || !transacoes || transacoes.length === 0) {
+                 respostaFinal = `📊 *Relatório*\nNenhuma transação encontrada com esses filtros.`;
+            } else {
+                let total = 0;
+                transacoes.forEach((t: any) => total += t.valor);
+                const linkApp = `https://sisfin.vercel.app/dashboard`;
+                respostaFinal = `📊 *Seu Relatório*\nTotal Encontrado: R$ ${total.toFixed(2)}\n\n🔗 *Veja com gráficos no App:*\n${linkApp}`;
             }
-
-            // 🚀 AQUI ENTRA O LINK MÁGICO PARA O APP
-            // Substitua pelo seu link real da Vercel
-            const linkApp = `https://sisfin.vercel.app/dashboard?periodo=${periodo}`;
-            respostaTexto += `\n\n🔗 *Veja os detalhes e baixe o PDF aqui:*\n${linkApp}`;
-
-            return respostaTexto;
         }
+    } else {
+        respostaFinal = message?.content || "Desculpe, não consegui processar o pedido.";
     }
 
-    return message?.content || "Desculpe, não entendi.";
+    historico.push({ role: "user", content: texto || (midia?.tipo === 'audio' ? '[Áudio enviado]' : '') });
+    historico.push({ role: "assistant", content: respostaFinal });
+
+    if (historico.length > 6) historico = historico.slice(historico.length - 6);
+
+    await supabaseAdmin
+        .from('usuarios_whatsapp')
+        .update({ historico_mensagens: historico })
+        .eq('user_id', userId);
+
+    return respostaFinal;
 
   } catch (error: any) {
-    console.error("Erro Service:", error);
     return "❌ Erro interno no processamento.";
   }
 }
