@@ -35,36 +35,44 @@ REGRAS ABSOLUTAS:
 `;
 
     const userContent: any[] = [];
-    
-    if (texto) userContent.push({ type: 'text', text: texto });
-    
-    if (midia) {
-        userContent.push({
-            type: 'image_url',
-            image_url: {
-                url: `data:${midia.mimeType};base64,${midia.data}`
-            }
-        });
-        if (midia.tipo === 'audio' && !texto) {
-             userContent.push({ type: 'text', text: "Ouça este áudio, transcreva e registre a transação." });
-        }
-        if (midia.tipo === 'image' && !texto) {
-            userContent.push({ type: 'text', text: "Analise esta imagem, extraia os dados financeiros e registre a transação." });
-       }
+
+    // 1. Adiciona o texto (se o cliente enviou texto ou legenda)
+    if (texto) {
+      userContent.push({ type: 'text', text: texto });
+    } else if (midia && midia.tipo === 'audio') {
+      // Se não tiver texto mas tiver áudio, damos um comando para ele ouvir
+      userContent.push({ type: 'text', text: 'Ouça o áudio em anexo e registre a transação financeira.' });
+    } else if (midia && midia.tipo === 'image') {
+      // Se for apenas imagem sem legenda
+      userContent.push({ type: 'text', text: 'Analise o recibo/imagem em anexo e registre a transação.' });
     }
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-       method: 'POST',
-       headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'X-Title': 'FinChat WhatsApp',
-       },
-       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+    // 2. Adiciona a Mídia (Áudio ou Imagem) formatada corretamente para o OpenRouter/Gemini
+    if (midia && midia.data) {
+      // O segredo está aqui: o OpenRouter exige o prefixo data:mimeType;base64,
+      const dataUri = `data:${midia.mimeType};base64,${midia.data}`;
+      
+      userContent.push({
+        type: 'image_url', // Curiosidade: o OpenRouter exige que se chame 'image_url' mesmo que seja um áudio!
+        image_url: {
+          url: dataUri
+        }
+      });
+    }
+
+    // 3. Monta a requisição final para enviar ao OpenRouter
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        // 🚨 ATENÇÃO: Certifique-se de que o modelo aqui é o 1.5-flash ou 1.5-pro!
+        model: "google/gemini-1.5-flash", 
         messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: userContent }
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userContent }
         ],
         tools: [
           {
@@ -138,6 +146,7 @@ REGRAS ABSOLUTAS:
        })
     });
 
+    // A correção estava aqui (de resposta.json() para response.json())
     const data = await response.json();
     
     console.log("\n🤖 --- RESPOSTA DO OPENROUTER ---");
@@ -260,24 +269,24 @@ REGRAS ABSOLUTAS:
                 }
             });
 
-            let resposta = `📊 *Seu Relatório (${periodo})*\n\n`;
-            if (tipo !== 'receita') resposta += `🔴 Despesas: R$ ${totalDespesas.toFixed(2)}\n`;
-            if (tipo !== 'despesa') resposta += `🟢 Receitas: R$ ${totalReceitas.toFixed(2)}\n`;
+            let respostaTexto = `📊 *Seu Relatório (${periodo})*\n\n`;
+            if (tipo !== 'receita') respostaTexto += `🔴 Despesas: R$ ${totalDespesas.toFixed(2)}\n`;
+            if (tipo !== 'despesa') respostaTexto += `🟢 Receitas: R$ ${totalReceitas.toFixed(2)}\n`;
             
             if (!categoria && totalDespesas > 0) {
-                 resposta += `\n*Onde você mais gastou:*\n`;
+                 respostaTexto += `\n*Onde você mais gastou:*\n`;
                  const ranking = Object.entries(categoriasCount).sort((a, b) => b[1] - a[1]);
                  for(let [cat, val] of ranking) {
-                     resposta += `📂 ${cat}: R$ ${val.toFixed(2)}\n`;
+                     respostaTexto += `📂 ${cat}: R$ ${val.toFixed(2)}\n`;
                  }
             }
 
             // 🚀 AQUI ENTRA O LINK MÁGICO PARA O APP
             // Substitua pelo seu link real da Vercel
             const linkApp = `https://sisfin.vercel.app/dashboard?periodo=${periodo}`;
-            resposta += `\n\n🔗 *Veja os detalhes e baixe o PDF aqui:*\n${linkApp}`;
+            respostaTexto += `\n\n🔗 *Veja os detalhes e baixe o PDF aqui:*\n${linkApp}`;
 
-            return resposta;
+            return respostaTexto;
         }
     }
 
