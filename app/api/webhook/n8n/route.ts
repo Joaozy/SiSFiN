@@ -14,13 +14,19 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     
-    // 🚨 CORREÇÃO 1: Pegar os nomes corretos que vêm do n8n (texto e midia)
+    // Pegar os dados que vêm do n8n
     const { telefone, texto, midia } = body;
+
+    // 🧹 LIMPEZA DO FORMATO DO ARQUIVO (A CORREÇÃO ESTÁ AQUI)
+    if (midia && midia.mimeType) {
+      // Transforma "audio/ogg; codecs=opus" em apenas "audio/ogg"
+      midia.mimeType = midia.mimeType.split(';')[0].trim();
+    }
 
     console.log('\n================ INÍCIO DO WEBHOOK ================');
     console.log(`📱 TELEFONE: "${telefone}"`);
     console.log(`💬 TEXTO: "${texto}"`);
-    console.log(`📎 TEM MÍDIA?: ${midia ? 'Sim (Áudio ou Imagem recebidos)' : 'Não'}`);
+    console.log(`📎 TEM MÍDIA?: ${midia ? `Sim (${midia.mimeType})` : 'Não'}`);
     
     const { data: usuario, error: erroUsuario } = await supabaseAdmin
       .from('usuarios_whatsapp')
@@ -37,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (!usuario) {
       respostaIA = "Olá! Não encontrei o seu registo. Por favor, aceda à nossa aplicação para criar a sua conta.";
     } else {
-      // 🚨 CORREÇÃO 2: Enviar o texto e a mídia para o Gemini processar
+      // Enviar o texto e a mídia para o Gemini processar
       respostaIA = await processarMensagemWhatsApp(texto, usuario.user_id, midia);
     }
 
