@@ -12,7 +12,7 @@ export async function processarMensagemWhatsApp(
     telefone: string,
     usuarioDb: any | null, 
     midia?: { tipo: 'image' | 'audio', data: string, mimeType: string }
-): Promise<{ texto: string, pdfUrl?: string }> { // 🚀 Atualizado para retornar objeto
+): Promise<{ texto: string, pdfUrl?: string }> { 
   try {
     if (!process.env.OPENROUTER_API_KEY) throw new Error("Sem chave API");
 
@@ -21,9 +21,14 @@ export async function processarMensagemWhatsApp(
     const anoAtual = hoje.getFullYear();
 
     // =======================================================================
-    // 🧠 CÉREBRO 1: MODO ONBOARDING (USUÁRIO NÃO EXISTE NO BANCO)
+    // 🧠 CÉREBRO 1: MODO ONBOARDING (COM MEMÓRIA TEMPORÁRIA)
     // =======================================================================
     if (!usuarioDb) {
+        // 1. Busca a memória da sala de espera
+        const { data: tempDb } = await supabaseAdmin.from('onboarding_temp').select('historico').eq('telefone', telefone).single();
+        let historicoOnboarding = tempDb?.historico || [];
+        if (!Array.isArray(historicoOnboarding)) historicoOnboarding = [];
+
         const ONBOARDING_PROMPT = `
 Você é o FinChat, um assistente financeiro de WhatsApp.
 O usuário enviou uma mensagem pela primeira vez e NÃO tem cadastro.
@@ -31,19 +36,22 @@ O usuário enviou uma mensagem pela primeira vez e NÃO tem cadastro.
 SUA MISSÃO:
 1. Dê as boas-vindas calorosas e explique brevemente que você é uma IA que organiza gastos via WhatsApp.
 2. Peça o NOME e o E-MAIL do usuário para criar a conta.
-3. Se ele já forneceu o Nome e E-mail na conversa, acione IMEDIATAMENTE a ferramenta 'criar_conta_whatsapp'.
-4. Após criar a conta, pergunte se ele quer um "Tutorial rápido" ou se quer apenas começar a mandar os gastos.
+3. Se ele informar apenas o nome, peça o e-mail. Se informar apenas o e-mail, peça o nome.
+4. Se ele já forneceu AMBOS (Nome e E-mail) durante a conversa, acione IMEDIATAMENTE a ferramenta 'criar_conta_whatsapp'.
 `;
+
+        const mensagensParaIA = [
+            { role: "system", content: ONBOARDING_PROMPT },
+            ...historicoOnboarding,
+            { role: "user", content: texto || "Olá" }
+        ];
 
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               model: "google/gemini-2.0-flash-001", 
-              messages: [
-                { role: "system", content: ONBOARDING_PROMPT },
-                { role: "user", content: texto || "Olá" }
-              ],
+              messages: mensagensParaIA,
               tools: [{
                   type: 'function',
                   function: {
@@ -62,20 +70,21 @@ SUA MISSÃO:
         const data = await response.json();
         const message = data.choices?.[0]?.message;
 
+        // Se a IA tiver dados suficientes para criar a conta
         if (message?.tool_calls?.length > 0) {
             const params = JSON.parse(message.tool_calls[0].function.arguments);
-            const senhaTemporaria = `Fin@${Math.floor(Math.random() * 9000) + 1000}`; // Ex: Fin@4021
+            const senhaTemporaria = `Fin@${Math.floor(Math.random() * 9000) + 1000}`;
 
-            // 1. Cria usuário no Supabase Auth
             const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
                 email: params.email,
                 password: senhaTemporaria,
                 email_confirm: true
             });
 
-            if (authError || !authUser.user) return { texto: `❌ Ops, erro ao criar sua conta web: ${authError?.message}` };
+            if (authError || !authUser.user) {
+                return { texto: `❌ Ops, ocorreu um erro ao criar sua conta web: ${authError?.message}` };
+            }
 
-            // 2. Salva o perfil na tabela do WhatsApp
             await supabaseAdmin.from('usuarios_whatsapp').insert({
                 user_id: authUser.user.id,
                 telefone: telefone,
@@ -83,10 +92,25 @@ SUA MISSÃO:
                 historico_mensagens: []
             });
 
+            // Limpa a memória temporária pois o usuário já está cadastrado
+            await supabaseAdmin.from('onboarding_temp').delete().eq('telefone', telefone);
+
             return { texto: `🎉 *Conta Criada com Sucesso, ${params.nome}!* \n\nSua área web exclusiva já está pronta.\n🔗 Painel: https://sisfin.vercel.app\n✉️ Email: ${params.email}\n🔑 Senha temp: ${senhaTemporaria}\n\nVocê quer um tutorial rápido de como eu funciono, ou já quer começar a me mandar as suas despesas?` };
         }
 
-        return { texto: message?.content || "Olá! Bem-vindo! Qual o seu nome e e-mail para começarmos?" };
+        // Se ainda faltar informações, responde e salva na memória temporária
+        let respostaTexto = message?.content || "Olá! Bem-vindo! Qual o seu nome e e-mail para começarmos?";
+        
+        historicoOnboarding.push({ role: "user", content: texto || "Olá" });
+        historicoOnboarding.push({ role: "assistant", content: respostaTexto });
+        if (historicoOnboarding.length > 6) historicoOnboarding = historicoOnboarding.slice(historicoOnboarding.length - 6);
+
+        await supabaseAdmin.from('onboarding_temp').upsert({
+            telefone: telefone,
+            historico: historicoOnboarding
+        });
+
+        return { texto: respostaTexto };
     }
 
     // =======================================================================
@@ -196,7 +220,7 @@ REGRAS DE OURO:
 
     const message = data.choices?.[0]?.message;
     let respostaFinal = "Desculpe, não consegui processar. Tente novamente.";
-    let linkDoPdf: string | undefined = undefined; // 🚀 Variável que vai segurar o link do PDF
+    let linkDoPdf: string | undefined = undefined; 
     
     if (message?.tool_calls?.length > 0) {
         const params = JSON.parse(message.tool_calls[0].function.arguments);
@@ -257,7 +281,6 @@ REGRAS DE OURO:
             else respostaFinal = `🗑️ *Transação Apagada!*\nA transação ID #${params.id_numero} foi removida permanentemente.`;
         }
         else if (funcName === 'gerar_relatorio') {
-            // 🚀 O NOVO GERADOR DE PDF 
             const { periodo } = params;
             let dataInicio = new Date();
             dataInicio.setHours(0,0,0,0);
@@ -279,7 +302,6 @@ REGRAS DE OURO:
                 let totalDespesa = 0; let totalReceita = 0;
                 transacoes.forEach((t: any) => t.tipo === 'despesa' ? totalDespesa += t.valor : totalReceita += t.valor);
 
-                // 🎨 DESENHANDO O PDF
                 const doc = new jsPDF();
                 doc.setFontSize(20);
                 doc.text(`Seu Extrato - FinChat`, 14, 20);
@@ -302,13 +324,11 @@ REGRAS DE OURO:
                     body: tableData,
                 });
 
-                // Converte para Buffer e Faz Upload
                 const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
                 const fileName = `extrato_${userId}_${Date.now()}.pdf`;
 
                 await supabaseAdmin.storage.from('relatorios').upload(fileName, pdfBuffer, { contentType: 'application/pdf' });
                 
-                // Pega a URL Pública
                 const { data: urlData } = supabaseAdmin.storage.from('relatorios').getPublicUrl(fileName);
                 linkDoPdf = urlData.publicUrl;
 
@@ -325,7 +345,7 @@ REGRAS DE OURO:
 
     await supabaseAdmin.from('usuarios_whatsapp').update({ historico_mensagens: historico }).eq('user_id', userId);
 
-    return { texto: respostaFinal, pdfUrl: linkDoPdf }; // 🚀 AGORA DEVOLVEMOS O TEXTO E O LINK
+    return { texto: respostaFinal, pdfUrl: linkDoPdf }; 
 
   } catch (error: any) {
     return { texto: "❌ Erro interno no processamento." };
