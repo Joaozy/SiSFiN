@@ -1,45 +1,19 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* 🚀 O SEGREDO DO V4: Isso ativa o botão de Modo Escuro manual (Next-Themes) */
+@custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-*: initial;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-/* Light mode - Fundo "SaaS Moderno" (Gelo Suave) */
-:root {
-  --background: #f8fafc; /* Um cinza levíssimo, tira o aspecto de "hospital" */
-  --foreground: #0f172a; /* Azul muito escuro para texto, mais elegante que preto puro */
-}
-
-/* Dark mode - Azul Marinho Profundo */
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --background: #09090b; 
-    --foreground: #f8fafc;
-  }
-}
-
-/* Dark mode - manual toggle */
-.dark {
-  --background: #09090b;
-  --foreground: #f8fafc;
-}
-
-/* Light mode - manual override */
-.light {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased; /* Deixa as fontes mais nítidas e premium */
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Animaciones personalizadas */
+/* Animações da sua Dashboard */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }

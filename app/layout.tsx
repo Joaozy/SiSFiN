@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       {/* 🚀 REMOVIDAS AS CORES FIXAS DAQUI. AGORA O GLOBALS.CSS MANDA! */}
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased transition-colors duration-300`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#f8fafc] dark:bg-[#09090b] text-[#0f172a] dark:text-[#f8fafc] transition-colors duration-300`}
         suppressHydrationWarning
       >
         <ThemeProvider
