@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, PlusCircle, LogOut, RefreshCw } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, LogOut, RefreshCw, User } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -24,6 +24,12 @@ export function Header() {
       ? 'bg-gray-100 dark:bg-gray-800 text-emerald-600 dark:text-emerald-400' 
       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
     }
+  `
+
+  // 🚀 Nova função para deixar os ícones do mobile com a cor certa quando clicados
+  const mobileNavClass = (path: string) => `
+    p-2 transition-colors
+    ${isActive(path) ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400'}
   `
 
   return (
@@ -52,6 +58,11 @@ export function Header() {
                 <RefreshCw className="w-4 h-4" />
                 Assinaturas
               </Link>
+              {/* 🚀 NOVO BOTÃO DE PERFIL DESKTOP */}
+              <Link href="/dashboard/perfil" className={navClass('/dashboard/perfil')}>
+                <User className="w-4 h-4" />
+                Perfil
+              </Link>
             </nav>
           </div>
 
@@ -69,11 +80,13 @@ export function Header() {
           </div>
         </div>
         
-        {/* Menu Mobile Simplificado (só ícones das páginas ativas) */}
+        {/* Menu Mobile Simplificado (agora com as cores dinâmicas) */}
         <div className="md:hidden border-t border-gray-100 dark:border-gray-800 flex justify-around py-2">
-            <Link href="/dashboard" className="p-2 text-emerald-600"><LayoutDashboard size={20}/></Link>
-            <Link href="/registro" className="p-2 text-gray-600"><PlusCircle size={20}/></Link>
-            <Link href="/gastos-recorrentes" className="p-2 text-gray-600"><RefreshCw size={20}/></Link>
+            <Link href="/dashboard" className={mobileNavClass('/dashboard')}><LayoutDashboard size={20}/></Link>
+            <Link href="/registro" className={mobileNavClass('/registro')}><PlusCircle size={20}/></Link>
+            <Link href="/gastos-recorrentes" className={mobileNavClass('/gastos-recorrentes')}><RefreshCw size={20}/></Link>
+            {/* 🚀 NOVO BOTÃO DE PERFIL MOBILE */}
+            <Link href="/dashboard/perfil" className={mobileNavClass('/dashboard/perfil')}><User size={20}/></Link>
         </div>
       </div>
     </header>
